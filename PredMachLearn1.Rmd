@@ -1,0 +1,75 @@
+---
+title: "PredMachLearn1"
+author: "Arnaud Lagarde"
+date: "Saturday, February 21, 2015"
+output: html_document
+---
+```{r,warning=FALSE,echo=FALSE}
+library(caret)
+library(randomForest)
+```
+
+Getting Data
+------------
+Let's load and have a look at the data first
+
+```{r}
+Rawtraining<-read.csv("pml-training.csv")
+Rawtesting<-read.csv("pml-testing.csv")
+```
+
+Cleaning Data
+-------------
+First we will remove all the columns which contains a majority of blanks and  NAs.
+Then we remove the first seven columns which contains irrelevant datas (user name, time stamp, etc...)
+Then we use the nearZeroVar function on remaining columns to check we got only potentially useful predictors. 
+
+```{r}
+colmarker<-c(1:dim(Rawtraining)[2])
+badcol<-which(sapply(colmarker,function(x){sum(is.na(Rawtraining[,x])|Rawtraining[,x]=="")})>19000)
+training<-Rawtraining[,-c(1:7,badcol)]
+testing<-Rawtesting[,-c(1:7,badcol)]
+NearZero<-nzv(training,saveMetrics=TRUE)
+which(NearZero$nzv)
+```
+
+Now, we divide the training set, into two datasets, one with 70% of the data to train the model, the remaining one to test it (Mtrain and Mtest)
+
+```{r}
+set.seed(1255)
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+Mtrain<-training[inTrain,]
+Mtest<-training[-inTrain,]
+
+```
+
+Model fitting
+-------------
+We will try to fit a random forest model, using Mtrain.
+Then we use this model to predict the Mtest classe, and check the accuracy with the confusion matrix.
+
+
+```{r}
+fit<-randomForest(classe~.,data=Mtrain)
+pred<-predict(fit, Mtest, type = "class")
+confusionMatrix(pred, Mtest$classe)
+```
+
+Conclusion
+----------
+That's a really high accuracy, above 99%. 
+We use random forest so there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error, as it is estimated internally. The expected out of sample error is 0.66%. 
+With this kind of accuracy, we don't expect any misclassification on our test samples of just 20 datas. Let's do the prediction for the test data.
+
+```{r}
+answers<-predict(fit, testing, type="class")
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+
+```
